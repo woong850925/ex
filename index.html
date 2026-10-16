@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Video</title>
+<link rel="preconnect" href="https://www.youtube.com">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+
+  /* 제목없음4의 .video-fullscreen-1 / .frame 과 같은 크기 계산 */
+  .video-fullscreen-1 { position: relative; width: 100%; height: 100vh; overflow: hidden; background: #000; }
+  .video-fullscreen-1 .frame {
+    width: calc(100vh * 16 / 9);
+    height: calc(100vw * 16 / 9);
+    min-width: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate3d(-50%, -50%, 0);
+  }
+  .video-fullscreen-1 iframe { width: 100%; height: 100%; display: block; border: 0; pointer-events: none; }
+
+  /* 시작 직후 유튜브가 잠깐 띄우는 중앙 버튼을 가리는 검은 막.
+     ease-in 이라 처음엔 천천히 걷히다가 버튼이 사라질 즈음 빠르게 걷힘 */
+  .curtain { position: absolute; inset: 0; z-index: 2; background: #000; opacity: 1; pointer-events: none; }
+  .curtain.hide { opacity: 0; transition: opacity 1.6s ease-in; }
+  .curtain.snap { opacity: 1; transition: none; }
+
+  .shield { position: absolute; inset: 0; z-index: 3; }
+</style>
+</head>
+<body>
+  <section class="video-fullscreen-1">
+    <div class="frame"><div id="player"></div></div>
+    <div class="curtain" id="curtain"></div>
+    <div class="shield"></div>
+  </section>
+
+<script>
+  const VIDEO_ID = 'CNMLglNXBcc';
+  const START_DELAY = 1200;   // 재생 시작 후 막이 걷히기 시작하기까지 (ms)
+  const curtain = document.getElementById('curtain');
+  let player, timer;
+
+  function showCurtain() {
+    clearTimeout(timer);
+    curtain.classList.remove('hide');
+    curtain.classList.add('snap');
+  }
+  function hideCurtain(delay) {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      curtain.classList.remove('snap');
+      curtain.classList.add('hide');
+    }, delay);
+  }
+
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+
+  window.onYouTubeIframeAPIReady = function () {
+    const vars = {
+      autoplay: 1, mute: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1,
+      iv_load_policy: 3, disablekb: 1, fs: 0, cc_load_policy: 0
+      // playlist 파라미터를 쓰지 않음: 이전/다음 버튼이 생기는 원인
+    };
+    if (location.protocol.startsWith('http')) vars.origin = location.origin;
+
+    player = new YT.Player('player', {
+      videoId: VIDEO_ID,
+      playerVars: vars,
+      events: {
+        onReady: e => { e.target.mute(); e.target.playVideo(); },
+        onStateChange: e => {
+          const S = YT.PlayerState;
+          if (e.data === S.PLAYING) hideCurtain(START_DELAY);
+          else if (e.data === S.PAUSED || e.data === S.CUED || e.data === S.UNSTARTED) { showCurtain(); e.target.playVideo(); }
+          else if (e.data === S.ENDED) { showCurtain(); e.target.seekTo(0); e.target.playVideo(); }
+        }
+      }
+    });
+
+    // 반복: 끝나기 직전에 처음으로 (종료 화면이 안 뜨게)
+    setInterval(() => {
+      if (!player || !player.getDuration) return;
+      const d = player.getDuration();
+      if (d > 0 && player.getCurrentTime() >= d - 0.5) player.seekTo(0, true);
+    }, 250);
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && player && player.playVideo) player.playVideo();
+  });
+  setTimeout(() => { if (!player) curtain.classList.add('hide'); }, 10000);
+</script>
+</body>
+</html>
